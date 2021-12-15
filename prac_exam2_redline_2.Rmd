@@ -44,7 +44,7 @@ library(rstatix)
 #### Basic - just show the temp differences in HOLC neighbourhoods, but then discuss how dones this relate to current census tracts
 
 ```{r}
-census_shape <- st_read(here::here('Data',
+LA_census_shape <- st_read(here::here('Data',
                                    'Census Tracts 2010',
                                    'geo_export_7388989a-c62d-4718-90d5-19f72cbdcb9f.shp'))%>%
       st_transform(., crs=26911)
@@ -57,7 +57,7 @@ HOLC <- st_read(here::here('Data',
 ```
 
 ```{r}
-crs(census_shape)
+crs(LA_census_shape)
 ```
 
 
@@ -152,10 +152,10 @@ raster::compareRaster(Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4,
 
 ```{r}
 lsatmask1 <- Band_need%>%
-  raster::crop(.,census_shape)
+  raster::crop(.,LA_census_shape)
 
 lsat2 <- lsatmask1%>%
-  raster::mask(.,census_shape)
+  raster::mask(.,LA_census_shape)
 ```
 
 ```{r}
@@ -245,11 +245,13 @@ NDVI <- (city$NIR-city$red)/(city$NIR+city$red)
 NDVI %>%
   plot(.,col = rev(terrain.colors(20)), main = "Landsat-NDVI")
 ```
+
 ```{r}
 # Let's look at the histogram for this dataset
 NDVI%>%
   hist(., breaks = 40, main = "NDVI Histogram", xlim = c(-.3,.8))
 ```
+
 ```{r}
 veg <- NDVI %>%
   reclassify(., cbind(-Inf, 0.3, NA))
@@ -317,8 +319,6 @@ lambda <- 1.09e-5
 #run the LST calculation
 #LST=Land Surface Temperature
 LST <- Brighttemp/(1 +(lambda*Brighttemp/p)*log(emiss))
-# check the values
-LST <- LST-273.15
 ```
 
 ```{r}
@@ -351,10 +351,12 @@ computeddata <- LST%>%
  # check the output
 plot(computeddata$Temp, computeddata$NDBI)
 ```
+
 ```{r}
 library(plotly)
 library(htmlwidgets)
 ```
+
 ```{r}
 heat<-ggplot(computeddata, aes(x = NDBI, y = Temp))+
   geom_point(alpha=2, colour = "#51A0D5")+
@@ -368,6 +370,7 @@ heat<-ggplot(computeddata, aes(x = NDBI, y = Temp))+
 # interactive plot
 ggplotly(heat)
 ```
+
 ```{r}
 computeddatafull <- LST%>%
   stack(.,NDBI)%>%
@@ -408,93 +411,6 @@ length(computeddatafull)
 abs(qt(0.05/2, 11373502))
 ```
 
-
-#### simple,mean temp per HOLC
-```{r}
-LST_per_HOLC <- raster::extract(LST,HOLC,fun=mean,na.rm=TRUE,df=TRUE)
-LST_per_census <- raster::extract(LST,census_shape,fun=mean,na.rm=TRUE,df=TRUE)
-
-census_shape$area_of_tract <- census_shape%>%
-  st_area()
-
-pi <- st_intersection(HOLC,census_shape)
-
-pi$intersect_area <- pi%>%
-  st_area()
-
-pitest <- pi%>%
-  filter(ct10==573003)
-
-pitestA <- pi%>%
-  group_by(ct10)%>%
-  filter(holc_grade=='A')%>%
-  summarise(A_area=sum(intersect_area))
-
-pitestB <- pi%>%
-  group_by(ct10)%>%
-  filter(holc_grade=='B')%>%
-  summarise(B_area=sum(intersect_area))
-
-pitestC <- pi%>%
-  group_by(ct10)%>%
-  filter(holc_grade=='C')%>%
-  summarise(C_area=sum(intersect_area))
-
-pitest <- pitestC%>%
-  filter(ct10==573003)
-
-pitestD <- pi%>%
-  group_by(ct10)%>%
-  filter(holc_grade=='D')%>%
-  summarise(D_area=sum(intersect_area))
-
-```
-
-#### join back
-```{r}
-census_shapeA <- census_shape%>%
-  st_drop_geometry()%>%
-  left_join(.,
-            pitestA,
-            by=c('ct10'='ct10'))
-
-census_shapeAB <- census_shapeA%>%
-  left_join(.,
-            pitestB,
-            by=c('ct10'='ct10'))
-
-census_shapeABC <- census_shapeAB%>%
-  left_join(.,
-            pitestC,
-            by=c('ct10'='ct10'))
-
-census_shapeABCD <- census_shapeABC%>%
-  left_join(.,
-            pitestD,
-            by=c('ct10'='ct10'))%>%
-  as_tibble()
-
-pick <- census_shapeABCD%>%
-  dplyr::select(ct10,area_of_tract,A_area,B_area,C_area,D_area)
-
-census_shape_joined <- census_shape%>%
-  left_join(.,
-            pick,
-            by=c('ct10'='ct10'))
-
-plot(census_shape$geometry,axes=TRUE)
-plot(HOLC$geometry,add=TRUE)
-plot(pi$geometry,add=TRUE,col='red')
-```
-
-```{r}
-library(tmap)
-
-tmap_mode('plot')
-
-tm_shape(census_shape_joined)+
-  tm_polygons(col=NA,alpha = 0.5)
-```
 ```{r}
 LST_per_HOLC <- raster::extract(LST,HOLC,fun=mean,na.rm=TRUE,df=TRUE)
 LST_per_census <- raster::extract(LST,census_shape,fun=mean,na.rm=TRUE,df=TRUE)
@@ -528,31 +444,94 @@ NDBI_per_HOLC2_cells<- NDBI_per_HOLC_cells %>%
   count(ID)
 
 #add the LSOA ID to the urban area
-NDBI_urban_per_LSOA$FID<-manchester_LSOA$FID
+NDBI_urban_per_HOLC$ID<- HOLC$holc_id
 
 #add the LSOA ID to the number of cells
-NDBI_per_LSOA2_cells$FID<-manchester_LSOA$FID
+NDBI_per_HOLC2_cells$ID<-HOLC$holc_id
 
 #join these two
-Urban_info_LSOA <- NDBI_urban_per_LSOA %>%
+Urban_info_HOLC <- NDBI_urban_per_HOLC %>%
   left_join(.,
-            NDBI_per_LSOA2_cells,
-            by="FID")
+            NDBI_per_HOLC2_cells,
+            by="ID")
 
 # remove what you don't need and rename
-Urban_info_LSOA_core_needed <- Urban_info_LSOA %>%
+Urban_info_HOLC_core_needed <- Urban_info_HOLC %>%
   dplyr::rename(urban_count=layer, 
-                LSOA_cells=n) %>%
+                HOLC_cells=n) %>%
   dplyr::select(urban_count,
-         LSOA_cells,
-         FID)%>%
-  dplyr::mutate(percent_urban=urban_count/LSOA_cells*100)
+         HOLC_cells,
+         ID)%>%
+  dplyr::mutate(percent_urban=urban_count/HOLC_cells*100)
 
 # join the data 
 # one sf with temp and % urban per LSOA
-manchester_LSOA_temp_urban <- manchester_LSOA_temp %>%
+HOLC_temp_urban <- HOLC_temp %>%
   left_join(.,
-             Urban_info_LSOA_core_needed,
-             by="FID")
+             Urban_info_HOLC_core_needed,
+             by=c('holc_id'='ID'))
+```
+
+```{r}
+HOLC_PLACE <- HOLC[LA_census_shape,]
+```
+
+```{r}
+HOLC_temp_urban2 <- HOLC_temp_urban
+
+HOLC_temp_urban2$temp <- HOLC_temp_urban2$temp+273.15
+```
+
+
+# MAPPING
+```{r}
+# this first bit makes the box bigger
+# so we can have a north arrow not overlapping the data
+# see: https://www.jla-data.net/eng/adjusting-bounding-box-of-a-tmap-map/
+bbox_new <- st_bbox(HOLC_temp_urban2) # current bounding box
+
+yrange <- bbox_new$ymax - bbox_new$ymin # range of y values
+
+bbox_new[4] <- bbox_new[4] + (0.1 * yrange) # ymax - top
+bbox_new[2] <- bbox_new[2] - (0.1 * yrange) # ymin - bottom
+
+# the plot starts here
+library(tmap)
+tmap_mode("plot")
+# set the new bbox
+# remove bbox=bbox_new to see the difference
+tm1 <- tm_shape(HOLC_temp_urban2, bbox = bbox_new) + 
+  tm_polygons("temp",
+              palette="PuBu",
+              legend.hist=TRUE,
+              title="Temperature")+
+  tm_shape(HOLC_PLACE, bbox=bbox_new)+
+  tm_dots(size=0.1, col="white")+
+  #tm_text(text="name", size=0.75, ymod=-0.5, col="white", fontface = "bold")+
+  #tm_legend(show=FALSE)+
+  tm_layout(frame=TRUE,
+            legend.outside=TRUE)+
+  tm_compass(type = "arrow", size=1, position = c("left", "top")) +
+  tm_scale_bar(position= c("left", "bottom"), breaks=c(0,2,4), text.size = .75)
+  #tm_credits("(a)", position=c(0,0.85), size=1.5)
+
+tm1
+```
+
+```{r}
+tm2 <- tm_shape(HOLC_temp_urban2) + 
+  tm_polygons("holc_grade",
+              palette="-PuBu") + 
+  tm_legend(show=TRUE)+
+  tm_layout(frame=TRUE)+
+    tm_dots(size=0.1, col="white")+
+  #tm_text(text="name", size=0.75, ymod=-0.5, col="white", fontface = "bold")+
+  #tm_legend(show=FALSE)+
+  tm_layout(frame=TRUE,
+            legend.outside=TRUE)+
+  tm_compass(type = "arrow", size=1, position = c("left", "top")) +
+  tm_scale_bar(position= c("left", "bottom"), breaks=c(0,2,4), text.size = .75)
+
+tm2
 ```
 
