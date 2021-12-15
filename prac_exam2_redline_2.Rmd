@@ -1,0 +1,557 @@
+---
+title: "prac_exam2_redline_2"
+author: "chris"
+date: "2021/12/15"
+output: html_document
+---
+
+
+
+# Originality declaration
+
+I, \[**Junqi Hu**\], confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
+
+date: `r format(Sys.time(), '%d %B, %Y')`
+
+# Start your response here
+
+## Initial project scope
+
+## 1.read library
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(fs)
+library(stringr)
+library(utils)
+library(raster)
+library(RStoolbox)
+library(ggplot2)
+library(GGally)
+library(RStoolbox)
+library(plotly)
+library(htmlwidgets)
+library(rstatix)
+```
+
+## 2.1 read files
+
+#### Could work out the % of each HOLC level in current census tracts and then relate that to temperature.. e.g. % of HOLC grade A vs temp, % of HOLC grade B vs temp.
+
+#### Basic - just show the temp differences in HOLC neighbourhoods, but then discuss how dones this relate to current census tracts
+
+```{r}
+census_shape <- st_read(here::here('Data',
+                                   'Census Tracts 2010',
+                                   'geo_export_7388989a-c62d-4718-90d5-19f72cbdcb9f.shp'))%>%
+      st_transform(., crs=26911)
+
+HOLC <- st_read(here::here('Data',
+                           'CALosAngeles1939',
+                           'cartodb-query.shp'))%>%
+      st_transform(., crs=26911)
+
+```
+
+```{r}
+crs(census_shape)
+```
+
+
+```{r}
+crs(HOLC)
+```
+
+
+
+
+## 2.2 read landst data
+
+```{r}
+listfiles <- dir_info(here::here('Data'))%>%
+  dplyr::filter(str_detect(path,'.tar'))%>%
+  dplyr::select(path)%>%
+  dplyr::pull()%>%
+  print()%>%
+  as.character()%>%
+  utils::untar(exdir = here::here('Data','Landsat'))
+```
+
+## 3
+
+#### List raster file excluding band 8 using the patter argument
+
+#### band 8 :Panchromatic全色波段
+
+![](images/Landsat_band_info.png)
+
+```{r}
+Band_need <-dir_info(here::here('Data',
+                                'Landsat'))%>%
+  dplyr::filter(str_detect(path,'[B45670].TIF'))%>%
+  #dplyr::filter(str_detect(path,'B1.TIF',negate = TRUE))%>% #不返回波段1
+  #dplyr::filter(str_detect(path,'B11',negate = TRUE))%>% #不返回波段11
+  dplyr::select(path)%>%
+  arrange()%>%
+  pull()%>%
+  as.character()%>%
+  stack()
+
+#names(Band_need) <- c('thermal','red','NIR','SWIR1','SWIR2')
+
+```
+
+
+### 2.1.2resample
+```{r}
+# get band 8
+b8list<-dir_info(here::here("Data", "Landsat"))%>%
+  dplyr::filter(str_detect(path, "[B8].TIF")) %>%
+  dplyr::select(path)%>%
+  pull()%>%
+  as.character()%>%
+  raster()
+```
+
+```{r}
+## ngb is a nearest neighbour sampling method
+b8correct <- b8list%>%
+  resample(., Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4, 
+             method = "ngb") %>%
+  # Write out the raster
+writeRaster(.,str_c(here::here("Data", 
+                             "Landsat"), 
+                  names(b8list), 
+                  sep="/"),
+            format='GTiff', 
+            overwrite=TRUE)
+```
+
+```{r}
+b8backin<-dir_info(here::here("Data", "Landsat"))%>%
+  dplyr::filter(str_detect(path, "[B8].tif")) %>%
+  dplyr::select(path)%>%
+  pull()%>%
+  as.character()%>%
+  raster()
+  
+Band_need <- Band_need %>%
+  addLayer(., b8backin)
+```
+
+```{r}
+raster::compareRaster(Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4,
+              Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B8)
+```
+
+
+#### NOW crop our temp data to the extent
+
+```{r}
+lsatmask1 <- Band_need%>%
+  raster::crop(.,census_shape)
+
+lsat2 <- lsatmask1%>%
+  raster::mask(.,census_shape)
+```
+
+```{r}
+names(lsat2) <- names(lsat2)%>%
+  str_c(., 
+        "mask", 
+        sep="_")
+
+# I need to write mine out in another location
+outputfilenames <-
+  str_c("Data/Landsat/", "mask/", names(lsat2) ,sep="")
+```
+
+```{r}
+lsatmask <- lsat2%>%
+  writeRaster(., names(lsat2), 
+              bylayer=TRUE, 
+              format='GTiff', 
+              overwrite=TRUE)
+```
+
+```{r}
+# either read them back in from the saved file:
+
+city_files<-dir_info(here::here("Data", "Landsat", "mask")) %>%
+  dplyr::filter(str_detect(path, "[B456780]_mask.tif")) %>%
+  dplyr::filter(str_detect(path, "B11", negate=TRUE))%>%
+  dplyr::select(path)%>%
+  pull()%>%
+  stack()
+
+# or extract them from the original stack
+city<-stack(lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B4_mask,
+            lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B5_mask,
+            lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B6_mask,
+            lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B7_mask,
+            lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B8_mask,
+            lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B10_mask)
+
+# Name the Bands based on where they sample the electromagentic spectrum
+names(city) <- c('red', 'NIR', 'SWIR1', 'SWIR2','pan','thermal') 
+```
+
+
+```{r}
+## How are these bands different?
+#set the plot window size (2 by 2)
+par(mfrow = c(2,2))
+#plot the bands
+
+plot(city$red, main = "red")
+plot(city$NIR, main = "NIR")
+plot(city$pan, main = "pan")
+plot(city$thermal, main = "thermal")
+
+```
+```{r}
+## Look at the stats of these bands
+pairs(city[[1:6]])
+```
+
+```{r}
+library(ggplot2)
+library(GGally)
+
+city %>%
+  terra::as.data.frame(., na.rm=TRUE)%>%
+  dplyr::sample_n(., 100)%>%
+  ggpairs(.,axisLabels="none")
+```
+
+
+```{r}
+holc_false <- stack(city$red,city$NIR,city$SWIR1)
+
+holc_false %>%
+  plotRGB(.,axes=TRUE,stretch='lin')
+```
+
+## 4 NDVI
+
+```{r}
+NDVI <- (city$NIR-city$red)/(city$NIR+city$red)
+```
+
+```{r}
+NDVI %>%
+  plot(.,col = rev(terrain.colors(20)), main = "Landsat-NDVI")
+```
+```{r}
+# Let's look at the histogram for this dataset
+NDVI%>%
+  hist(., breaks = 40, main = "NDVI Histogram", xlim = c(-.3,.8))
+```
+```{r}
+veg <- NDVI %>%
+  reclassify(., cbind(-Inf, 0.3, NA))
+
+veg %>%
+  plot(.,main = 'Possible Veg cover')
+```
+```{r}
+holc_false %>%
+  plotRGB(.,axes = TRUE, stretch = "lin", main = "Landsat True Color Composite")
+
+veg %>%
+  plot(., add=TRUE, legend=FALSE)
+```
+
+
+#### MTL
+
+![](images/TOA.png)
+```{r}
+#不起作用，mtl格式会改变，所以手动找常量
+library(RStoolbox)
+
+MTL<-dir_info(here::here("Data", "Landsat")) %>%
+  dplyr::filter(str_detect(path, "MTL.txt")) %>%
+  dplyr::select(path)%>%
+  pull()%>%
+  readMeta()
+
+ #To see all the attributes
+head(MTL)
+```
+
+```{r}
+
+#offsetandgain <- c(gain='0.0003342',offset='0.1')
+```
+
+```{r}
+TOA <- 0.0003342 *city$thermal + 0.1
+
+k1 <- 774.8853
+
+k2 <- 1321.0789
+
+Brighttemp <- (k2/log(k1/TOA)+1)
+```
+
+
+```{r}
+facveg <- (NDVI-0.2/0.5-0.2)^2
+
+emiss <- 0.004*facveg+0.986
+```
+
+```{r}
+Boltzmann <- 1.38*10e-23
+Plank <- 6.626*10e-34
+c <- 2.998*10e8
+
+p <- Plank*(c/Boltzmann)
+
+#define remaining varaibles
+lambda <- 1.09e-5
+#run the LST calculation
+#LST=Land Surface Temperature
+LST <- Brighttemp/(1 +(lambda*Brighttemp/p)*log(emiss))
+# check the values
+LST <- LST-273.15
+```
+
+```{r}
+LST <- LST-273.15
+plot(LST)
+```
+
+
+#### NDBI
+```{r}
+NDBI=((city$SWIR1-city$NIR)/(city$SWIR1+city$NIR))
+
+```
+
+```{r}
+plot(values(NDBI), values(LST))
+```
+
+```{r}
+# stack the layers
+
+computeddata <- LST%>%
+  stack(.,NDBI)%>%
+  terra::as.data.frame()%>%
+  na.omit()%>%
+  # take a random subset
+  dplyr::sample_n(., 500)%>%
+  dplyr::rename(Temp="layer.1", NDBI="layer.2")
+
+ # check the output
+plot(computeddata$Temp, computeddata$NDBI)
+```
+```{r}
+library(plotly)
+library(htmlwidgets)
+```
+```{r}
+heat<-ggplot(computeddata, aes(x = NDBI, y = Temp))+
+  geom_point(alpha=2, colour = "#51A0D5")+
+  labs(x = "Temperature", 
+       y = "Urban index",
+       title = "HOLC urban and temperature relationship")+
+   geom_smooth(method='lm', se=FALSE)+
+  theme_classic()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+# interactive plot
+ggplotly(heat)
+```
+```{r}
+computeddatafull <- LST%>%
+  stack(.,NDBI)%>%
+  terra::as.data.frame()%>%
+  na.omit()%>%
+  # take a random subset
+  dplyr::rename(Temp="layer.1", NDBI="layer.2")
+
+hexbins <- ggplot(computeddatafull, 
+                  aes(x=NDBI, y=Temp)) +
+  geom_hex(bins=100, na.rm=TRUE) +
+  labs(fill = "Count per bin")+
+  geom_smooth(method='lm', se=FALSE, size=0.6)+
+  theme_bw()
+
+ggplotly(hexbins)
+```
+
+```{r}
+library(rstatix)
+Correlation <- computeddatafull %>%
+  cor_test(Temp, NDBI, use = "complete.obs", method = c("pearson"))
+
+Correlation
+```
+
+```{r}
+computeddatafull %>%
+  pull(Temp)%>%
+  length()
+```
+
+```{r}
+length(computeddatafull)
+```
+
+```{r}
+abs(qt(0.05/2, 11373502))
+```
+
+
+#### simple,mean temp per HOLC
+```{r}
+LST_per_HOLC <- raster::extract(LST,HOLC,fun=mean,na.rm=TRUE,df=TRUE)
+LST_per_census <- raster::extract(LST,census_shape,fun=mean,na.rm=TRUE,df=TRUE)
+
+census_shape$area_of_tract <- census_shape%>%
+  st_area()
+
+pi <- st_intersection(HOLC,census_shape)
+
+pi$intersect_area <- pi%>%
+  st_area()
+
+pitest <- pi%>%
+  filter(ct10==573003)
+
+pitestA <- pi%>%
+  group_by(ct10)%>%
+  filter(holc_grade=='A')%>%
+  summarise(A_area=sum(intersect_area))
+
+pitestB <- pi%>%
+  group_by(ct10)%>%
+  filter(holc_grade=='B')%>%
+  summarise(B_area=sum(intersect_area))
+
+pitestC <- pi%>%
+  group_by(ct10)%>%
+  filter(holc_grade=='C')%>%
+  summarise(C_area=sum(intersect_area))
+
+pitest <- pitestC%>%
+  filter(ct10==573003)
+
+pitestD <- pi%>%
+  group_by(ct10)%>%
+  filter(holc_grade=='D')%>%
+  summarise(D_area=sum(intersect_area))
+
+```
+
+#### join back
+```{r}
+census_shapeA <- census_shape%>%
+  st_drop_geometry()%>%
+  left_join(.,
+            pitestA,
+            by=c('ct10'='ct10'))
+
+census_shapeAB <- census_shapeA%>%
+  left_join(.,
+            pitestB,
+            by=c('ct10'='ct10'))
+
+census_shapeABC <- census_shapeAB%>%
+  left_join(.,
+            pitestC,
+            by=c('ct10'='ct10'))
+
+census_shapeABCD <- census_shapeABC%>%
+  left_join(.,
+            pitestD,
+            by=c('ct10'='ct10'))%>%
+  as_tibble()
+
+pick <- census_shapeABCD%>%
+  dplyr::select(ct10,area_of_tract,A_area,B_area,C_area,D_area)
+
+census_shape_joined <- census_shape%>%
+  left_join(.,
+            pick,
+            by=c('ct10'='ct10'))
+
+plot(census_shape$geometry,axes=TRUE)
+plot(HOLC$geometry,add=TRUE)
+plot(pi$geometry,add=TRUE,col='red')
+```
+
+```{r}
+library(tmap)
+
+tmap_mode('plot')
+
+tm_shape(census_shape_joined)+
+  tm_polygons(col=NA,alpha = 0.5)
+```
+```{r}
+LST_per_HOLC <- raster::extract(LST,HOLC,fun=mean,na.rm=TRUE,df=TRUE)
+LST_per_census <- raster::extract(LST,census_shape,fun=mean,na.rm=TRUE,df=TRUE)
+```
+
+
+```{r}
+LST_per_HOLC$ID <- HOLC$holc_id
+```
+
+```{r}
+HOLC_temp <- HOLC%>%
+  left_join(.,
+            LST_per_HOLC,
+            by=c('holc_id'='ID'))%>%
+  dplyr::rename(temp=layer)
+```
+
+```{r}
+#define urban as NDBI greater than 0
+NDBI_urban<- NDBI > 0
+
+# Sum the pixels that are grater than 0 per LSOA
+NDBI_urban_per_HOLC <- raster::extract(NDBI_urban, HOLC, na.rm=TRUE, df=TRUE, fun=sum)
+
+# list the pixels per LSOA
+NDBI_per_HOLC_cells <- raster::extract(NDBI_urban, HOLC, na.rm=TRUE, df=TRUE, cellnumbers=TRUE)
+
+#count the pixels per LSOA
+NDBI_per_HOLC2_cells<- NDBI_per_HOLC_cells %>%
+  count(ID)
+
+#add the LSOA ID to the urban area
+NDBI_urban_per_LSOA$FID<-manchester_LSOA$FID
+
+#add the LSOA ID to the number of cells
+NDBI_per_LSOA2_cells$FID<-manchester_LSOA$FID
+
+#join these two
+Urban_info_LSOA <- NDBI_urban_per_LSOA %>%
+  left_join(.,
+            NDBI_per_LSOA2_cells,
+            by="FID")
+
+# remove what you don't need and rename
+Urban_info_LSOA_core_needed <- Urban_info_LSOA %>%
+  dplyr::rename(urban_count=layer, 
+                LSOA_cells=n) %>%
+  dplyr::select(urban_count,
+         LSOA_cells,
+         FID)%>%
+  dplyr::mutate(percent_urban=urban_count/LSOA_cells*100)
+
+# join the data 
+# one sf with temp and % urban per LSOA
+manchester_LSOA_temp_urban <- manchester_LSOA_temp %>%
+  left_join(.,
+             Urban_info_LSOA_core_needed,
+             by="FID")
+```
+
