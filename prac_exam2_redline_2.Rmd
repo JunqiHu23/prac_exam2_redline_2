@@ -49,7 +49,7 @@ date: `r format(Sys.time(), '%d %B, %Y')`
 
 -   URL: <https://earthexplorer.usgs.gov/>
 
--   Download raster images from '*USGS*'
+-   Download remote sense raster images from '*USGS*'
 
 -   Time: May 2021
 
@@ -73,9 +73,31 @@ date: `r format(Sys.time(), '%d %B, %Y')`
 
 [**What has been the impact of weather temperature on the use of American Home Owners' Loan Corporation(HOLC) defined area with social equity issues today?**]{.ul}
 
-## 1.4 
+## 1.4 Research Hypothesis
 
-## 1.read library
+[**Higher ranked areas (based on the HOLC,from A to D) will have lower temperatue**]{.ul}
+
+[**Null Hypothesis: Higher ranked areas will not have lower temperature**]{.ul}
+
+## 1.5 Research Methodology
+
+-   Now I will move on to some basic advanced raster analysis to compute temperature from this raster data.
+
+-   The goal of this final section is to set up a mini investigation to see if there is a relationship between urban area and temperature.
+
+-   To do so we need to generate additional raster layers, the first of which is NDVI.
+
+-   I will use the Normalized Difference Built-up Index (NDBI) algorithm for identification of built up regions using the reflective bands: Red, Near-Infrared (NIR) and Mid-Infrared (MIR).
+
+-   If I want to present this analysis to local leaders in LA to show which areas experience the highest temperature (remember, with the limitation of this being one day!)
+
+-   Next, I will aggregate our raster data to PLACES, taking a mean of the pixels in each PLACES.
+
+-   Finally, I could map temperature and graded map to see the relationships.
+
+# 2 Research Process
+
+## 2.1 Import library
 
 ```{r}
 library(tidyverse)
@@ -97,37 +119,51 @@ library(cowplot)
 library(sysfonts)
 library(extrafont) 
 library(showtext) 
-##
 ```
 
-## 2.1 read files
+## 2.2 Read data
 
-#### Could work out the % of each HOLC level in current census tracts and then relate that to temperature.. e.g. % of HOLC grade A vs temp, % of HOLC grade B vs temp.
+Could work out the % of each HOLC level in current census tracts and then relate that to temperature.. e.g. % of HOLC grade A vs temp, % of HOLC grade B vs temp.
 
-#### Basic - just show the temp differences in HOLC neighbourhoods, but then discuss how dones this relate to current census tracts
+Basic - just show the temp differences in HOLC neighbourhoods, but then discuss how dones this relate to current census tracts
+
+### 2.2.1 Cenus tract
+
+Read and transform crs=26911
 
 ```{r}
 LA_census_shape <- st_read(here::here('Data',
                                    'Census Tracts 2010',
                                    'geo_export_7388989a-c62d-4718-90d5-19f72cbdcb9f.shp'))%>%
       st_transform(., crs=26911)
+```
 
+### 2.2.2 HOLC
+
+Reac HOLC shapefile and also transform crs=26911
+
+```{r}
 HOLC <- st_read(here::here('Data',
                            'CALosAngeles1939',
                            'cartodb-query.shp'))%>%
       st_transform(., crs=26911)
-
 ```
+
+check they have the same Coordinate Reference System (CRS)
 
 ```{r}
 crs(LA_census_shape)
 ```
 
+check they have the same Coordinate Reference System (CRS)
+
 ```{r}
 crs(HOLC)
 ```
 
-## 2.2 read landst data
+### 2.2.3 Landsat Data
+
+Next I need to uncompress and unzip the file
 
 ```{r}
 listfiles <- dir_info(here::here('Data'))%>%
@@ -139,13 +175,11 @@ listfiles <- dir_info(here::here('Data'))%>%
   utils::untar(exdir = here::here('Data','Landsat'))
 ```
 
-## 3
+## 2.3 Processing raster data
 
-#### List raster file excluding band 8 using the patter argument
+### 2.3.1 Loading
 
-#### band 8 :Panchromatic全色波段
-
-![](images/Landsat_band_info.png)
+Select band 4/5/6/7/10
 
 ```{r}
 Band_need <-dir_info(here::here('Data',
@@ -163,82 +197,93 @@ Band_need <-dir_info(here::here('Data',
 
 ```
 
-### 2.1.2resample
-
 ```{r}
+#resample band 8
 # get band 8
-b8list<-dir_info(here::here("Data", "Landsat"))%>%
-  dplyr::filter(str_detect(path, "[B8].TIF")) %>%
-  dplyr::select(path)%>%
-  pull()%>%
-  as.character()%>%
-  raster()
+#b8list<-dir_info(here::here("Data", "Landsat"))%>%
+  #dplyr::filter(str_detect(path, "[B8].TIF")) %>%
+  #dplyr::select(path)%>%
+  #pull()%>%
+  #as.character()%>%
+  #raster()
 ```
 
 ```{r}
 ## ngb is a nearest neighbour sampling method
-b8correct <- b8list%>%
-  resample(., Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4, 
-             method = "ngb") %>%
+#b8correct <- b8list%>%
+  #resample(., Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4, 
+            # method = "ngb") %>%
   # Write out the raster
-writeRaster(.,str_c(here::here("Data", 
-                             "Landsat"), 
-                  names(b8list), 
-                  sep="/"),
-            format='GTiff', 
-            overwrite=TRUE)
+#writeRaster(.,str_c(here::here("Data", 
+                   #          "Landsat"), 
+                 # names(b8list), 
+                 # sep="/"),
+            #format='GTiff', 
+           # overwrite=TRUE)
 ```
 
 ```{r}
-b8backin<-dir_info(here::here("Data", "Landsat"))%>%
-  dplyr::filter(str_detect(path, "[B8].tif")) %>%
-  dplyr::select(path)%>%
-  pull()%>%
-  as.character()%>%
-  raster()
+#b8backin<-dir_info(here::here("Data", "Landsat"))%>%
+  #dplyr::filter(str_detect(path, "[B8].tif")) %>%
+  #dplyr::select(path)%>%
+  #pull()%>%
+  #as.character()%>%
+ # raster()
   
-Band_need <- Band_need %>%
-  addLayer(., b8backin)
+#Band_need <- Band_need %>%
+ # addLayer(., b8backin)
 ```
 
 ```{r}
-raster::compareRaster(Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4,
-              Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B8)
+#raster::compareRaster(Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4,
+           #   Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B8)
 ```
 
-#### NOW crop our temp data to the extent
+### 2.3.2 Clipping
+
+Our raster is currently the size of the scene which satellite data is distributed in, to clip it to our study area it's best to first crop it to the extent of the shapefile and then mask it as we have done in previous practicals
 
 ```{r}
 lsatmask1 <- Band_need%>%
   raster::crop(.,LA_census_shape)
 
-lsat2 <- lsatmask1%>%
+lsatmask2 <- lsatmask1%>%
   raster::mask(.,LA_census_shape)
 ```
 
+I could now change our filenames in the raster stack and write the .TIFF files out again
+
 ```{r}
-names(lsat2) <- names(lsat2)%>%
+# add mask to the filenames within the raster stack
+names(lsatmask2) <- names(lsatmask2)%>%
   str_c(., 
         "mask", 
         sep="_")
 
 # I need to write mine out in another location
 outputfilenames <-
-  str_c("Data/Landsat/", "mask/", names(lsat2) ,sep="")
+  str_c("prac_exam2_redline_2/Data/Landsat/", "mask/", names(lsatmask2) ,sep="")
 ```
 
+store clipped Landsat files in project directory
+
 ```{r}
-lsatmask <- lsat2%>%
-  writeRaster(., names(lsat2), 
+lsatmask <- lsatmask2%>%
+  writeRaster(., names(lsatmask2), 
               bylayer=TRUE, 
               format='GTiff', 
               overwrite=TRUE)
 ```
 
+## 2.4 Data exploration
+
+## 2.4.1 More loading and manipulating
+
+For the next stage of analysis we are only interested in bands 1-7, we can either load them back in from the files we just saved or take them directly from the original raster stack.
+
 ```{r}
 # either read them back in from the saved file:
-
-city_files<-dir_info(here::here("Data", "Landsat", "mask")) %>%
+city_files<-dir_info(here::here("prac_exam2_redline_2")) %>%
   dplyr::filter(str_detect(path, "[B456780]_mask.tif")) %>%
   dplyr::filter(str_detect(path, "B11", negate=TRUE))%>%
   dplyr::select(path)%>%
@@ -253,6 +298,12 @@ city<-stack(lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B4_mask,
             lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B8_mask,
             lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B10_mask)
 
+
+```
+
+![](images/Landsat_band_info.png)
+
+```{r}
 # Name the Bands based on where they sample the electromagentic spectrum
 names(city) <- c('red', 'NIR', 'SWIR1', 'SWIR2','pan','thermal') 
 ```
