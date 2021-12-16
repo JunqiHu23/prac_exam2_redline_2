@@ -550,15 +550,15 @@ library(showtext) # more fonts
 showtext_auto()
 
 # create classes
-data <- bi_class(manchester_LSOA_temp_urban, x = temp, y = percent_urban, style = "jenks", dim = 3)
+data <- bi_class(HOLC_temp_urban2, x = temp, y = percent_urban, style = "jenks", dim = 3)
 
 #ggplot map
 map <- ggplot() +
  geom_sf(data = data, mapping = aes(fill = bi_class), color=NA, lwd = 0.1, show.legend = FALSE) +
   bi_scale_fill(pal = "DkViolet", dim = 3) +
-  geom_sf(data = manchester_MSOA, mapping = aes(fill=NA), color="black", alpha=0, show.legend = FALSE)+
-  geom_sf(data=manchester_Places, mapping=aes(fill=NA), color="white", show.legend = FALSE)+
-  geom_sf_text(data=manchester_Places, aes(label = name, hjust = 0.5, vjust = -0.5),
+  geom_sf(data = LA_census_shape, mapping = aes(fill=NA), color="black", alpha=0, show.legend = FALSE)+
+  geom_sf(data=HOLC_PLACE, mapping=aes(fill=NA), color="white", show.legend = FALSE)+
+  geom_sf_text(data=HOLC_PLACE, aes(label = name, hjust = 0.5, vjust = -0.5),
                nudge_x = 0, nudge_y = 0,
                fontface = "bold",
              color = "white",
@@ -584,5 +584,34 @@ finalPlot <- ggdraw() +
   draw_plot(legend, 0.1, 0.1, 0.2, 0.2)
   #draw_text(credit, 0.68, 0.1, 0.2, 0.2, size=10)
 finalPlot
+```
+
+```{r}
+urban_box<-ggplot(data, aes(x=bi_class, y=percent_urban, fill=bi_class)) +
+  geom_boxplot()+
+  scale_fill_manual(values=c("#CABED0", "#BC7C8F", "#806A8A", "#435786", "#AE3A4E", "#77324C", "#3F2949", "#3F2949",'#A52A2A'))+
+  labs(x="Bivariate class (temp, urban)", 
+       y="Urban %")+
+  theme_light()+
+  theme(legend.position="none") # Remove legend
+
+temp_violin<-ggplot(data, aes(x=bi_class, y=temp, fill=bi_class))+
+  geom_violin()+
+  scale_fill_manual(values=c("#CABED0", "#BC7C8F", "#806A8A", "#435786", "#AE3A4E", "#77324C", "#3F2949", "#3F2949",'#A52A2A'))+
+  labs(x="", 
+       y="Temperature")+
+   guides(fill=guide_legend(title="Class"))+
+  theme_light()+
+  theme(legend.position="none") # Remove legend
+```
+
+```{r}
+side <- plot_grid(temp_violin, urban_box, labels=c("B","C"),label_size = 12, ncol=1)
+
+all <- plot_grid(finalPlot, side, labels = c('A'), label_size = 12, ncol = 2,  rel_widths = c(2, 1))
+```
+
+```{r}
+all
 ```
 
