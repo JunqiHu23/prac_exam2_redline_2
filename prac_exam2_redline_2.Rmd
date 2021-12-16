@@ -5,8 +5,6 @@ date: "2021/12/15"
 output: html_document
 ---
 
-
-
 # Originality declaration
 
 I, \[**Junqi Hu**\], confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
@@ -16,6 +14,13 @@ date: `r format(Sys.time(), '%d %B, %Y')`
 # Start your response here
 
 ## Initial project scope
+
+# Project Scope Description
+
+-   1
+-   2
+-   3
+-   4
 
 ## 1.read library
 
@@ -65,13 +70,9 @@ HOLC <- st_read(here::here('Data',
 crs(LA_census_shape)
 ```
 
-
 ```{r}
 crs(HOLC)
 ```
-
-
-
 
 ## 2.2 read landst data
 
@@ -109,8 +110,8 @@ Band_need <-dir_info(here::here('Data',
 
 ```
 
-
 ### 2.1.2resample
+
 ```{r}
 # get band 8
 b8list<-dir_info(here::here("Data", "Landsat"))%>%
@@ -151,7 +152,6 @@ Band_need <- Band_need %>%
 raster::compareRaster(Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B4,
               Band_need$LC08_L1TP_041036_20210503_20210508_02_T1_B8)
 ```
-
 
 #### NOW crop our temp data to the extent
 
@@ -204,7 +204,6 @@ city<-stack(lsatmask$LC08_L1TP_041036_20210503_20210508_02_T1_B4_mask,
 names(city) <- c('red', 'NIR', 'SWIR1', 'SWIR2','pan','thermal') 
 ```
 
-
 ```{r}
 ## How are these bands different?
 #set the plot window size (2 by 2)
@@ -217,6 +216,7 @@ plot(city$pan, main = "pan")
 plot(city$thermal, main = "thermal")
 
 ```
+
 ```{r}
 ## Look at the stats of these bands
 pairs(city[[1:6]])
@@ -231,7 +231,6 @@ city %>%
   dplyr::sample_n(., 100)%>%
   ggpairs(.,axisLabels="none")
 ```
-
 
 ```{r}
 holc_false <- stack(city$red,city$NIR,city$SWIR1)
@@ -264,6 +263,7 @@ veg <- NDVI %>%
 veg %>%
   plot(.,main = 'Possible Veg cover')
 ```
+
 ```{r}
 holc_false %>%
   plotRGB(.,axes = TRUE, stretch = "lin", main = "Landsat True Color Composite")
@@ -272,10 +272,10 @@ veg %>%
   plot(., add=TRUE, legend=FALSE)
 ```
 
-
 #### MTL
 
 ![](images/TOA.png)
+
 ```{r}
 #不起作用，mtl格式会改变，所以手动找常量
 library(RStoolbox)
@@ -305,7 +305,6 @@ k2 <- 1321.0789
 Brighttemp <- (k2/log(k1/TOA)+1)
 ```
 
-
 ```{r}
 facveg <- (NDVI-0.2/0.5-0.2)^2
 
@@ -331,8 +330,8 @@ LST <- LST-273.15
 plot(LST)
 ```
 
-
 #### NDBI
+
 ```{r}
 NDBI=((city$SWIR1-city$NIR)/(city$SWIR1+city$NIR))
 
@@ -421,7 +420,6 @@ LST_per_HOLC <- raster::extract(LST,HOLC,fun=mean,na.rm=TRUE,df=TRUE)
 LST_per_census <- raster::extract(LST,census_shape,fun=mean,na.rm=TRUE,df=TRUE)
 ```
 
-
 ```{r}
 LST_per_HOLC$ID <- HOLC$holc_id
 ```
@@ -487,8 +485,8 @@ HOLC_temp_urban2 <- HOLC_temp_urban
 HOLC_temp_urban2$temp <- HOLC_temp_urban2$temp+273.15
 ```
 
-
 # MAPPING
+
 ```{r}
 # this first bit makes the box bigger
 # so we can have a north arrow not overlapping the data
@@ -614,4 +612,3 @@ all <- plot_grid(finalPlot, side, labels = c('A'), label_size = 12, ncol = 2,  r
 ```{r}
 all
 ```
-
