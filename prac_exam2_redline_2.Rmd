@@ -35,13 +35,15 @@ date: `r format(Sys.time(), '%d %B, %Y')`
 
 -   Download redlining shapefile from '*Mapping InequalityRedlining in New Deal America*'
 
--   Check in QGIS, it contains three fields:
+-   Check in QGIS, it contains three fields with 416 rows:
 
  (1) name: text values are all missing (NULL).
 
  (2) holc_id: unique id. No missing values.
 
  (3) holc_grade: 4 grades for each HOLC.
+
+-   WGS84
 
 ### 1.2.2 Landsat 8 image
 
@@ -58,6 +60,16 @@ date: `r format(Sys.time(), '%d %B, %Y')`
 ### 1.2.3 Los Angeles census tracts
 
 -   URL: <https://data.lacounty.gov/Geospatial/Census-Tracts-2010/ay2y-b9rg>
+
+-   Download census tracts shapefile from '*COUNTRY OF LOS ANGELES OPEN DATA*'
+
+-   Check in QGIS, it contains seven fields with 2345 rows,including 'ct10', 'geoid10', 'label', 'shape area', 'shape len', 'x center', 'y center'
+
+-   No missing values
+
+-   WGS84
+
+## 1.3 
 
 ## 1.read library
 
