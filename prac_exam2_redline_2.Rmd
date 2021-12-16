@@ -34,6 +34,11 @@ library(RStoolbox)
 library(plotly)
 library(htmlwidgets)
 library(rstatix)
+library(biscale)
+library(cowplot)
+library(sysfonts)
+library(extrafont) 
+library(showtext) 
 ##
 ```
 
@@ -521,7 +526,7 @@ tm1
 ```{r}
 tm2 <- tm_shape(HOLC_temp_urban2) + 
   tm_polygons("holc_grade",
-              palette="-PuBu") + 
+              palette="PuBu") + 
   tm_legend(show=TRUE)+
   tm_layout(frame=TRUE)+
     tm_dots(size=0.1, col="white")+
@@ -533,5 +538,51 @@ tm2 <- tm_shape(HOLC_temp_urban2) +
   tm_scale_bar(position= c("left", "bottom"), breaks=c(0,2,4), text.size = .75)
 
 tm2
+```
+
+```{r}
+library(biscale)
+library(cowplot)
+library(sysfonts)
+library(extrafont) 
+library(showtext) # more fonts
+#font_add_google("Lato", regular.wt = 300, bold.wt = 700) # I like using Lato for data viz (and everything else...). Open sans is also great for web viewing.
+showtext_auto()
+
+# create classes
+data <- bi_class(manchester_LSOA_temp_urban, x = temp, y = percent_urban, style = "jenks", dim = 3)
+
+#ggplot map
+map <- ggplot() +
+ geom_sf(data = data, mapping = aes(fill = bi_class), color=NA, lwd = 0.1, show.legend = FALSE) +
+  bi_scale_fill(pal = "DkViolet", dim = 3) +
+  geom_sf(data = manchester_MSOA, mapping = aes(fill=NA), color="black", alpha=0, show.legend = FALSE)+
+  geom_sf(data=manchester_Places, mapping=aes(fill=NA), color="white", show.legend = FALSE)+
+  geom_sf_text(data=manchester_Places, aes(label = name, hjust = 0.5, vjust = -0.5),
+               nudge_x = 0, nudge_y = 0,
+               fontface = "bold",
+             color = "white",
+             show.legend = FALSE,
+             inherit.aes = TRUE)+
+  labs(
+    title = "",
+    x="", y=""
+  ) +
+  bi_theme()
+
+legend <- bi_legend(pal = "DkViolet",
+                    dim = 3,
+                    xlab = "Temperature ",
+                    ylab = "% Urban",
+                    size = 8)
+
+credit<- ("Landsat dervied temperature and urban area, taken 13/5/19")
+
+# combine map with legend
+finalPlot <- ggdraw() +
+  draw_plot(map, 0, 0, 1, 1) +
+  draw_plot(legend, 0.1, 0.1, 0.2, 0.2)
+  #draw_text(credit, 0.68, 0.1, 0.2, 0.2, size=10)
+finalPlot
 ```
 
